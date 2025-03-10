@@ -3,8 +3,18 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 class DualPol:
-    def __init__(self, horizontal_csv_file, vertical_csv_file, hacky_fix = False):
-        temp = pd.read_csv(horizontal_csv_file)
+    def __init__(self, horizontal_csv_file, vertical_csv_file, hacky_fix = False, read_from_df = False):
+        
+        if read_from_df:
+            temp = horizontal_csv_file
+            self.vertical_data = vertical_csv_file
+            
+
+        else:
+        
+            temp = pd.read_csv(horizontal_csv_file)
+            self.vertical_data = pd.read_csv(vertical_csv_file)
+
         ##########################################################
         # Remove this hacky fix
         if hacky_fix:
@@ -13,11 +23,10 @@ class DualPol:
         else:
             self.horizontal_data = temp
 
-        self.vertical_data = pd.read_csv(vertical_csv_file)
-
         self.resultant_fields_calculated = False
         self.differential_reflectivity_calculated = False
         self.differential_phase_calculated = False
+        self.phase_calculated = False
 
     def _calculate_resultant_fields(self):
 
@@ -28,13 +37,21 @@ class DualPol:
 
 
         self.resultant_theta_field = (
-            horizontal_e_theta + vertical_e_theta
-        )
+            horizontal_e_theta + vertical_e_theta#*np.exp(2j*np.pi/3)
+        )#*np.exp(2j*np.pi/3)
         self.resultant_phi_field = (
-            horizontal_e_phi + vertical_e_phi
+            horizontal_e_phi + vertical_e_phi#*np.exp(2j*np.pi/3)
         )
 
         self.resultant_fields_calculated = True
+
+    def _calculate_phases(self):
+
+        if not self.resultant_fields_calculated:
+            self._calculate_resultant_fields()
+
+        self.resultant_theta_phase = np.angle(self.resultant_theta_field) * 180 / np.pi
+        self.resultant_phi_phase = np.angle(self.resultant_phi_field) * 180 / np.pi
 
     def _de_alias(self, aliased_data):
 
@@ -87,7 +104,7 @@ class DualPol:
         if de_alias:
             self.differential_phase = self._de_alias(self.differential_phase)
 
-        self.differential_phase_calculated = True
+        self.differential_phase_calculated = True    
 
     def plot_differential_reflectivity(self, title=None):
 
