@@ -27,16 +27,36 @@ class ComplexMultiBody:
         Placeholder method to extract single body results 
         """
         self.single_scatterer_profiles = {}
-        
-        for key in self.distribution_df['scatterer_id'].unique():
+        slant = self.distribution_df.attrs['beam_angle']
 
+        for key in self.distribution_df['scatterer_id'].unique():
+            # Split the string
+            key_override = 'Xxanth_17_0_0'
+            #slant_override = 0.5
+            parts = key_override.split('_')
+
+            # Assign values
+            name = parts[0]
+            size = int(parts[1])
+            pitch = int(parts[2])
+            heading = int(parts[3])
+
+            scatterer_file = self.scatterer_dataset.sel(
+                name=name,
+                size=size,
+                pitch=pitch,
+                slant=slant,
+            )
             ## This will need to read in the base scatterer and then correct for azimuth (probably in a spearate method)
             single_body_results = np.zeros((180, 4), dtype=complex)
             
-            single_body_results[:,0] = self.scatterer_dataset['H_H'].astype(complex).to_numpy()[0:-1]
-            single_body_results[:,1] = self.scatterer_dataset['H_V'].astype(complex).to_numpy()[0:-1]
-            single_body_results[:,2] = self.scatterer_dataset['V_H'].astype(complex).to_numpy()[0:-1]
-            single_body_results[:,3] = self.scatterer_dataset['V_V'].astype(complex).to_numpy()[0:-1]
+            single_body_results[:,0] = scatterer_file['H_H_r'].to_numpy() + scatterer_file['H_H_i'].to_numpy() * 1j
+            single_body_results[:,1] = scatterer_file['H_V_r'].to_numpy() + scatterer_file['H_V_i'].to_numpy() * 1j
+            single_body_results[:,2] = scatterer_file['V_H_r'].to_numpy() + scatterer_file['V_H_i'].to_numpy() * 1j
+            single_body_results[:,3] = scatterer_file['V_V_r'].to_numpy() + scatterer_file['V_V_i'].to_numpy() * 1j 
+            # single_body_results[:,1] = self.scatterer_dataset['H_V'].astype(complex).to_numpy()
+            # single_body_results[:,2] = self.scatterer_dataset['V_H'].astype(complex).to_numpy()
+            # single_body_results[:,3] = self.scatterer_dataset['V_V'].astype(complex).to_numpy()
     
 
             self.single_scatterer_profiles[key] = single_body_results
