@@ -7,11 +7,13 @@ class ComplexMultiBody:
     """
 
 
-    def __init__(self, distribution_df, frequency, scatterer_dataset = None):
+    def __init__(self, distribution_df, frequency, scatterer_dataset = None, override = False, ignore_heading = False):
 
         self.distribution_df = distribution_df
         self.scatterer_dataset = scatterer_dataset
         self.frequency = frequency
+        self.override = override
+        self.ignore_heading = ignore_heading
 
     def _convert_relative_distances_to_phase_shifts(self):
         """
@@ -30,16 +32,18 @@ class ComplexMultiBody:
         slant = self.distribution_df.attrs['beam_angle']
 
         for key in self.distribution_df['scatterer_id'].unique():
-            # Split the string
-            key_override = 'Xxanth_17_0_0'
-            #slant_override = 0.5
-            parts = key_override.split('_')
+            
+            if self.override:
+                key = 'Xxanth_17_0_0'
+                
+            
+            parts = key.split('_')
 
             # Assign values
             name = parts[0]
             size = int(parts[1])
-            pitch = int(parts[2])
-            heading = int(parts[3])
+            heading = int(parts[2])
+            pitch = int(parts[3])
 
             scatterer_file = self.scatterer_dataset.sel(
                 name=name,
@@ -47,19 +51,27 @@ class ComplexMultiBody:
                 pitch=pitch,
                 slant=slant,
             )
-            ## This will need to read in the base scatterer and then correct for azimuth (probably in a spearate method)
+
             single_body_results = np.zeros((180, 4), dtype=complex)
             
             single_body_results[:,0] = scatterer_file['H_H_r'].to_numpy() + scatterer_file['H_H_i'].to_numpy() * 1j
             single_body_results[:,1] = scatterer_file['H_V_r'].to_numpy() + scatterer_file['H_V_i'].to_numpy() * 1j
             single_body_results[:,2] = scatterer_file['V_H_r'].to_numpy() + scatterer_file['V_H_i'].to_numpy() * 1j
             single_body_results[:,3] = scatterer_file['V_V_r'].to_numpy() + scatterer_file['V_V_i'].to_numpy() * 1j 
-            # single_body_results[:,1] = self.scatterer_dataset['H_V'].astype(complex).to_numpy()
-            # single_body_results[:,2] = self.scatterer_dataset['V_H'].astype(complex).to_numpy()
-            # single_body_results[:,3] = self.scatterer_dataset['V_V'].astype(complex).to_numpy()
-    
+            
+            # Adjust azimuth for heading of scatterer
+            if self.ignore_heading:
 
-            self.single_scatterer_profiles[key] = single_body_results
+                self.single_scatterer_profiles[key] = single_body_results
+            else:
+
+                for i in range(4):
+
+                    single_body_results[:, i] = np.roll(single_body_results[:, i], int(heading/2))
+
+                self.single_scatterer_profiles[key] = single_body_results
+
+            
             
 
     def _perform_phase_shifts(self):
@@ -78,7 +90,12 @@ class ComplexMultiBody:
 
         row_counter = 0
         for scatterer_row_index, row in self.distribution_df.iterrows():
-            scatterer_id = row['scatterer_id']
+            
+            if self.override:
+                scatterer_id = 'Xxanth_17_0_0'
+            else:
+                scatterer_id = row['scatterer_id']
+
             phase_shift = row['phase_shift']
             
             single_body_results = self.single_scatterer_profiles[scatterer_id]
