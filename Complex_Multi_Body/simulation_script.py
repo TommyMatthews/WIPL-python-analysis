@@ -11,6 +11,7 @@ import xarray as xr
 from scipy.stats import truncnorm
 import os
 
+np.random.seed(42)  # For reproducibility
 
 def discrete_truncated_normal_pmf(mean, spread, lower=0, upper=25):
     """
@@ -53,7 +54,7 @@ def discrete_truncated_normal_pmf(mean, spread, lower=0, upper=25):
 
     return df
 
-def generate_distribution_df(radar_params, biological_params, run_id):
+def generate_distribution_df(radar_params, biological_params, run_id, save=True):
 
     range_gate_separation = radar_params['range_gate_separation']
     radar_beam_width = radar_params['radar_beam_width']
@@ -162,11 +163,35 @@ def generate_distribution_df(radar_params, biological_params, run_id):
     # Project each (x, y, z) coordinate from df onto beam_vector
     df['relative_distance_along_beam'] = df[['x', 'y', 'z']].values @ beam_vector
 
-
-    pickle.dump(df, open(f'./runs/{run_id}/distribution_df_{run_id}.pkl', 'wb'))
+    if save:
+        pickle.dump(df, open(f'./runs/{run_id}/distribution_df_{run_id}.pkl', 'wb'))
 
     return df
 
+def run_simulation(df, scatterer_dataset, frequency=5.6, override=False, ignore_heading=False):
+    """
+    Run the simulation for the given distribution DataFrame.
+    
+    Parameters:
+    - df: DataFrame containing distribution data
+    - frequency: Frequency in GHz
+    - scatterer_dataset: xarray Dataset containing scatterer profiles
+    - override: If True, use a specific scatterer profile
+    - ignore_heading: If True, ignore the heading of scatterers
+    """
+    
+    CMB = cmb(
+        scatterer_dataset=scatterer_dataset,
+        frequency=frequency,
+        distribution_df=df,
+        override=override,
+        ignore_heading=ignore_heading
+    )
+
+    CMB.calculate_resultant_voltages()
+    CMB._dual_pol_calcs_on_recieved_voltages()
+
+    return CMB
 
 if __name__ == "__main__":
 
@@ -196,14 +221,7 @@ if __name__ == "__main__":
 
     df = generate_distribution_df(radar_params, biological_params, run_id)
 
-    CMB = cmb(
-        scatterer_dataset=xr.open_dataset('bioscatterer_database_v0.001.nc'),
-        frequency=5.6,
-        distribution_df=df
-        )
-
-    CMB.calculate_resultant_voltages()
-    CMB._dual_pol_calcs_on_recieved_voltages()
+    CMB = run_simulation(df, xr.open_dataset('bioscatterer_database_v0.001.nc'), frequency=5.6)
 
     # Plot 1: Differential Reflectivity
     plt.figure()
