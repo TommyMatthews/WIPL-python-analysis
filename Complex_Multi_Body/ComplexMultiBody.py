@@ -162,3 +162,22 @@ class ComplexMultiBody:
             self.differential_phase[phi] = np.rad2deg(np.angle(self.resultant_voltage_phi[phi]) - np.angle(self.resultant_voltage_theta[phi]))
                 
         self.differential_phase_de_aliased = self._de_alias(self.differential_phase)
+
+    def write_to_file(self, file_path):
+        """
+        Write the results to a file.
+        """
+        results_df = pd.DataFrame({
+            'azimuth': np.arange(0,360, 2),
+            'differential_reflectivity': self.differential_reflectivity,
+            'differential_phase': self.differential_phase_de_aliased,
+            'horizontal_power': self.horizontal_power,
+            'vertical_power': self.vertical_power,
+            'resultant_voltage_phi': self.resultant_voltage_phi,
+            'resultant_voltage_theta': self.resultant_voltage_theta,
+            'frequency': self.frequency,
+        })
+        
+
+        results_df.to_csv(file_path, index=False)
+
