@@ -195,13 +195,13 @@ def run_simulation(df, scatterer_dataset, frequency=5.6, override=False, ignore_
 
 def single_simulation_full_run(run_id, biological_params, radar_params, scatterer_dataset, file_path, frequency=5.6):
     
-    df = generate_distribution_df(radar_params, biological_params, run_id)
+    df = generate_distribution_df(radar_params, biological_params, run_id, save=False)
     
     CMB = run_simulation(df, scatterer_dataset, frequency=frequency)
 
     CMB.write_to_file(file_path)
 
-    return CMB, run_id
+    return CMB
 
 
 if __name__ == "__main__":

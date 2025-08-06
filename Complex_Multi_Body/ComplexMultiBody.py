@@ -163,11 +163,11 @@ class ComplexMultiBody:
                 
         self.differential_phase_de_aliased = self._de_alias(self.differential_phase)
 
-    def write_to_file(self, file_path):
+    def generate_df(self):
         """
-        Write the results to a file.
+        Generate a pandas DataFrame with the results of the simulation.
         """
-        results_df = pd.DataFrame({
+        self.results_df = pd.DataFrame({
             'azimuth': np.arange(0,360, 2),
             'differential_reflectivity': self.differential_reflectivity,
             'differential_phase': self.differential_phase_de_aliased,
@@ -177,7 +177,15 @@ class ComplexMultiBody:
             'resultant_voltage_theta': self.resultant_voltage_theta,
             'frequency': self.frequency,
         })
-        
 
-        results_df.to_csv(file_path, index=False)
+
+        return self.results_df
+    
+    def write_to_file(self, file_path):
+        """
+        Write the results DataFrame to a CSV file.
+        """
+        df = self.generate_df()
+        df.to_csv(file_path, index=False)
+        print(f"Results written to {file_path}")
 
