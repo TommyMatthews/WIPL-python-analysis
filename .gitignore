@@ -1,3 +1,5 @@
 *.svg
 *.png
 *.pdf
+
+scatterer_database/*
