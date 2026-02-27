@@ -2,6 +2,7 @@ import numpy as np
 from sklearn.neighbors import KDTree, KernelDensity
 import matplotlib.pyplot as plt
 from sklearn.model_selection import GridSearchCV
+import matplotlib.cm as cm
 
 class KNNSeparator():
     """
@@ -196,7 +197,7 @@ class KNNSeparator():
 
         cumulative_array = np.concatenate([
                 arrays[2][indices_l2,:],
-                arrays[1],
+                arrays[1][indices_l1,:],
                 arrays[0],
                 ])
 
@@ -211,7 +212,9 @@ class KNNSeparator():
 
         selected_data = [arrays[0], l1_selected, l2_selected, l3_selected]
 
-        return selected_data
+        proportions = [len(x)/len(y) for x ,y in zip(selected_data, arrays)]
+
+        return selected_data, proportions
     
 
     def quantify_category_distinction(self, n_neighbours, threshold_1, threshold_2, calculation_kwargs, normalise_flag=True, return_data = False):
@@ -220,14 +223,14 @@ class KNNSeparator():
 
         print('Delta Zdr and PhiDP required for separation #2:', threshold_2 * 16, 'dB,', threshold_2 *360, 'degrees')
 
-        selected_data = self._generate_selected_data(n_neighbours, threshold_1, threshold_2, calculation_kwargs, normalise_flag)
+        selected_data, proportions = self._generate_selected_data(n_neighbours, threshold_1, threshold_2, calculation_kwargs, normalise_flag)
 
         self.last_selected_data = selected_data
 
         self.DATA_SELECTED = True
 
         if return_data:
-            return selected_data
+            return selected_data, proportions
 
     def scatter_plot(self, selected_data = None, indices_to_plot = [0,1,2,3],alpha=0.2):
 
@@ -363,8 +366,8 @@ class KNNSeparator():
             ax.contourf(self.X, self.Y, density, levels=40, cmap='viridis')
 
             ax.set_title(f"KDE of {index}")
-            ax.set_xlabel("Normalised PhiDP")
-            ax.set_ylabel("Normalised Zdr")
+            ax.set_xlabel("Normalised Zdr")
+            ax.set_ylabel("Normalised PhiDP")
             ax.grid()
         
         plt.show()  
@@ -378,7 +381,7 @@ class KNNSeparator():
 
         #axes = np.asarray(axes).ravel()
 
-        maps=['Purples', 'Reds', 'Blues', 'Greens']
+        maps=['Reds', 'Blues', 'Greens', 'Oranges']
 
         for index in np.arange(4)[::-1]:
             density = densities[index]
@@ -403,6 +406,47 @@ class KNNSeparator():
         # plt.colorbar()
         plt.show()  
 
+    def plot_KDE_max(self, densities = None):
+
+        densities = self.check_densities(densities)
+
+        # densities = [d0, d1, d2, d3]
+        stack = np.stack(densities, axis=0)   # shape (4, H, W)
+
+        # Find winner and its value
+        argmax = np.argmax(stack, axis=0)     # (H, W)
+        max_vals = np.max(stack, axis=0)      # (H, W)
+
+        H, W = max_vals.shape
+
+        # Define your 4 colormaps
+        cmaps = [
+            cm.Reds,
+            cm.Blues,
+            cm.Greens,
+            cm.Purples
+        ]
+
+        # Prepare RGBA image
+        rgba_image = np.zeros((H, W, 4))
+
+        # Color per density
+        for i in range(4):
+            mask = (argmax == i)
+
+            # IMPORTANT:
+            # Use that density's actual values (already normalized 0-1)
+            values = stack[i]
+
+            colored = cmaps[i](values)  # apply colormap using its own scale
+            rgba_image[mask] = colored[mask]
+
+        # Plot
+        plt.figure(figsize=(7,7))
+        plt.imshow(rgba_image, origin = 'lower')
+        plt.axis('off')
+        plt.title("Maximum within-categorty density")
+        plt.show()
 
 
     def full_analysis(self,
@@ -410,12 +454,15 @@ class KNNSeparator():
                       threshold_1 = 0.01,
                       threshold_2 = 0.02,
                       calculation_kwargs = {},
+                      return_proportions = False,
                       scatter_plot = True, 
                       separate_kde_plots = True, 
                       combined_kde_plot = True,
+                      kde_max_plot = True,
                       scatter_plot_kwargs = {},
                       separate_kde_plot_kwargs = {},
                       combined_kde_plot_kwargs = {},
+                      kde_max_plot_kwargs = {},
                       ):
         
         # required_keys = ['pitches', 'Zdr_max', 'Zdr_min', 'phiT']
@@ -425,13 +472,18 @@ class KNNSeparator():
         #     if key not in calculation_kwargs.keys():
         #         raise ValueError(f'{key} not present in calculation kwargs; calculation kwargs must contain {required_keys}')
 
-        self.quantify_category_distinction(
+        self.DATA_SELECTED = False
+        self.DENSITIES_CALCULATED = False
+
+        selected_data, proportions = self.quantify_category_distinction(
             n_neighbours,
             threshold_1,
             threshold_2,
-            calculation_kwargs = calculation_kwargs
+            calculation_kwargs = calculation_kwargs,
+            return_data=True
             )
         
+
         if scatter_plot:
             self.scatter_plot(**scatter_plot_kwargs)
 
@@ -440,6 +492,12 @@ class KNNSeparator():
 
         if combined_kde_plot:
             self.plot_KDEs_together(**combined_kde_plot_kwargs)
+
+        if kde_max_plot:
+            self.plot_KDE_max()
+
+        if return_proportions:
+            return proportions
 
 
 
