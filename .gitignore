@@ -1,5 +1,7 @@
 *.svg
 *.png
 *.pdf
+testing_KNN_distinction.ipynb
+using_quant_distinction.ipynb
 
 scatterer_database/*
