@@ -1,8 +1,9 @@
 import sys
 sys.path.append('/Users/sstk4353/packages/.')
+sys.path.append('/Users/sstk4353/Library/CloudStorage/OneDrive-UniversityofLeeds/PhD/.')
 sys.path.append('./')
 
-from SDComplexMultiBody import ComplexMultiBody as cmb
+from WIPL_python_analysis import SDComplexMultiBody as cmb
 import sys
 import pickle
 import numpy as np
@@ -63,14 +64,10 @@ def generate_distribution_df(radar_params, biological_params, run_id, save=True)
     beam_angle = radar_params['beam_angle']
 
     density = biological_params['density']
-    sizes = biological_params['sizes']
-    size_distribution = biological_params['size_distribution']
-    mean_heading = biological_params['mean_heading']
-    heading_spread = biological_params['heading_spread']
-    mean_pitch = biological_params['mean_pitch']
-    pitch_spread = biological_params['pitch_spread']
+    species_dict = biological_params['species_dict']
+    species_params_dicts = biological_params['species_params_dicts']
 
-    pitch_probability_df = discrete_truncated_normal_pmf(mean_pitch, pitch_spread, lower=0, upper=25)
+    #pitch_probability_df = discrete_truncated_normal_pmf(mean_pitch, pitch_spread, lower=0, upper=25)
 
     radius = range_of_observation*np.deg2rad(radar_beam_width)/2 # meters
     volume = np.pi * radius**2 * range_gate_separation # cubic meters
@@ -125,30 +122,39 @@ def generate_distribution_df(radar_params, biological_params, run_id, save=True)
         "density": density,
     }
 
-    df.attrs['mean_heading'] = mean_heading
-    df.attrs['heading_spread'] = heading_spread
-    df.attrs['mean_pitch'] = mean_pitch
-    df.attrs['pitch_spread'] = pitch_spread
+    # df.attrs['mean_heading'] = mean_heading
+    # df.attrs['heading_spread'] = heading_spread
+    # df.attrs['mean_pitch'] = mean_pitch
+    # df.attrs['pitch_spread'] = pitch_spread
 
 
     # Add scatterer params
+
+    species_list =  [0]*len(species_dict)
+    species_prob_list = [0]*len(species_dict)
+
+    for counter, (name, prob) in enumerate(species_dict.items()):
+        species_list[counter] = name
+        species_prob_list[counter] = prob
 
     string_list = []
     size_list = []
     heading_list = []
     pitch_list = []
 
-    name = 'Xxanth' # for Xestia xanthographa
-    name_list = [name] * len(df)
+    # name = 'Xxanth' # for Xestia xanthographa
+    # name_list = [name] * len(df)
 
     for _ in range(len(df)):
-        size = np.random.choice(sizes, p=size_distribution)
+        species_name = np.random.choice(species_list, p=species_prob_list)
+        species_params = species_params_dicts[species_name]
+        size = np.random.choice(species_params['sizes'], p=species_params['size_distribution'])
         
-        heading = int(np.random.normal(mean_heading, heading_spread))
+        heading = int(np.random.normal(species_params['mean_heading'], species_params['heading_spread']))
 
         #heading = heading_sample if heading_sample>0 else 360 + heading_sample  # Ensure heading is positive
-        pitch = int(np.random.choice(pitch_probability_df['pitch'], p=pitch_probability_df['p(x)']))
-        string_list.append(f"{name}_{size}_{heading}_{pitch}")
+        pitch = int(np.random.choice(species_params['pitches'], p=species_params['pitch_probs']))
+        string_list.append(f"{species_name}_{size}_{heading}_{pitch}")
         size_list.append(size)
         heading_list.append(heading)
         pitch_list.append(pitch)
