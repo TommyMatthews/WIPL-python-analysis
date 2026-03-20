@@ -7,11 +7,12 @@ class ComplexMultiBody:
     """
 
 
-    def __init__(self, distribution_df, frequency, scatterer_dataset = None, override = False, ignore_heading = False):
+    def __init__(self, distribution_df, frequency, scatterer_dataset = None, phiT=0, override = False, ignore_heading = False):
 
         self.distribution_df = distribution_df
         self.scatterer_dataset = scatterer_dataset
         self.frequency = frequency
+        self.phiT = phiT
         self.override = override
         self.ignore_heading = ignore_heading
 
@@ -37,27 +38,34 @@ class ComplexMultiBody:
                 key = 'Xxanth_17_0_0'
                 
             
-            parts = key.split('_')
+            parts = key.split('~')
 
             # Assign values
             name = parts[0]
-            size = int(parts[1])
+            length = int(parts[1])
             heading = int(parts[2])
             pitch = int(parts[3])
 
-            scatterer_file = self.scatterer_dataset.sel(
-                name=name,
-                size=size,
+            scatterer_file = self.scatterer_dataset[name].sel(
+                length=length,
                 pitch=pitch,
                 slant=slant,
+                frequency = self.frequency
             )
 
-            single_body_results = np.zeros((180, 4), dtype=complex)
+            single_body_results = np.zeros((72, 4), dtype=complex)
+
+            phiT_rad = self.phiT*np.pi/180
             
+            # single_body_results[:,0] = scatterer_file['H_H_r'].to_numpy() + scatterer_file['H_H_i'].to_numpy() * 1j
+            # single_body_results[:,1] = (scatterer_file['H_V_r'].to_numpy() + scatterer_file['H_V_i'].to_numpy() * 1j)
+            # single_body_results[:,2] = (scatterer_file['V_H_r'].to_numpy() + scatterer_file['V_H_i'].to_numpy() * 1j)
+            # single_body_results[:,3] = (scatterer_file['V_V_r'].to_numpy() + scatterer_file['V_V_i'].to_numpy() * 1j)
+
             single_body_results[:,0] = scatterer_file['H_H_r'].to_numpy() + scatterer_file['H_H_i'].to_numpy() * 1j
-            single_body_results[:,1] = scatterer_file['H_V_r'].to_numpy() + scatterer_file['H_V_i'].to_numpy() * 1j
-            single_body_results[:,2] = scatterer_file['V_H_r'].to_numpy() + scatterer_file['V_H_i'].to_numpy() * 1j
-            single_body_results[:,3] = scatterer_file['V_V_r'].to_numpy() + scatterer_file['V_V_i'].to_numpy() * 1j 
+            single_body_results[:,1] = (scatterer_file['H_V_r'].to_numpy() + scatterer_file['H_V_i'].to_numpy() * 1j)*np.exp(1j*phiT_rad)
+            single_body_results[:,2] = (scatterer_file['V_H_r'].to_numpy() + scatterer_file['V_H_i'].to_numpy() * 1j)*np.exp(1j*phiT_rad)
+            single_body_results[:,3] = (scatterer_file['V_V_r'].to_numpy() + scatterer_file['V_V_i'].to_numpy() * 1j)*np.exp(2j*phiT_rad)
             
             # Adjust azimuth for heading of scatterer
             if self.ignore_heading:
@@ -67,7 +75,7 @@ class ComplexMultiBody:
 
                 for i in range(4):
 
-                    single_body_results[:, i] = np.roll(single_body_results[:, i], int(heading/2))
+                    single_body_results[:, i] = np.roll(single_body_results[:, i], int(heading/5)) #to account for simulations at every 5th azimuth
 
                 self.single_scatterer_profiles[key] = single_body_results
 
@@ -86,28 +94,42 @@ class ComplexMultiBody:
         self._convert_relative_distances_to_phase_shifts()
         self._extract_single_body_results()
 
-        self.full_results_shifted = np.zeros((len(self.distribution_df), 4, 180), dtype=complex)
+        self.full_results_shifted = np.zeros((len(self.distribution_df), 4, 72), dtype=complex)
 
-        row_counter = 0
-        for scatterer_row_index, row in self.distribution_df.iterrows():
-            
-            if self.override:
-                scatterer_id = 'Xxanth_17_0_0'
-            else:
-                scatterer_id = row['scatterer_id']
+        phasors = np.exp(2j * self.distribution_df['phase_shift'].values)
 
-            phase_shift = row['phase_shift']
-            
+        for row_counter, (_, row) in enumerate(self.distribution_df.iterrows()):
+            scatterer_id = row['scatterer_id']
             single_body_results = self.single_scatterer_profiles[scatterer_id]
 
+            self.full_results_shifted[row_counter] = single_body_results.T * phasors[row_counter]
 
-            for scattering_result_index in range(4):
-                for azimuth in range(180):
-                    self.full_results_shifted[row_counter, scattering_result_index, azimuth] = (
-                        single_body_results[azimuth, scattering_result_index] * np.exp(2j * phase_shift)
-                    )
 
-            row_counter += 1
+        # row_counter = 0
+        # for scatterer_row_index, row in self.distribution_df.iterrows():
+            
+        #     if self.override:
+        #         scatterer_id = 'Xxanth_17_0_0'
+        #     else:
+        #         scatterer_id = row['scatterer_id']
+
+        #     phase_shift = row['phase_shift']
+            
+        #     single_body_results = self.single_scatterer_profiles[scatterer_id]
+
+
+        # #     for scattering_result_index in range(4):
+        # #         for azimuth in range(72):
+        # #             self.full_results_shifted[row_counter, scattering_result_index, azimuth] = (
+        # #                 single_body_results[azimuth, scattering_result_index] * np.exp(2j * phase_shift)
+        # #             )
+
+        #     self.full_results_shifted[row_counter, :, :] = (
+        #         single_body_results[:, :].T * np.exp(2j * phase_shift)
+        #     )
+
+
+        #     row_counter += 1
 
     def calculate_resultant_voltages(self):
         """
@@ -116,8 +138,8 @@ class ComplexMultiBody:
 
         self._perform_phase_shifts()
 
-        self.resultant_voltage_phi = np.zeros(180, dtype=complex)  
-        self.resultant_voltage_theta = np.zeros(180, dtype=complex)
+        self.resultant_voltage_phi = np.zeros(72, dtype=complex)  
+        self.resultant_voltage_theta = np.zeros(72, dtype=complex)
 
         self.resultant_voltage_phi = np.sum(self.full_results_shifted[:, 0, :], axis=0) + np.sum(self.full_results_shifted[:, 2, :], axis=0)
         self.resultant_voltage_theta = np.sum(self.full_results_shifted[:, 1, :], axis=0) + np.sum(self.full_results_shifted[:, 3, :], axis=0)
@@ -152,16 +174,22 @@ class ComplexMultiBody:
         self.horizontal_power = np.abs(self.resultant_voltage_phi)**2
         self.vertical_power = np.abs(self.resultant_voltage_theta)**2
 
-        self.differential_reflectivity = np.zeros(180)
-        self.differential_phase = np.zeros(180)
-        self.differential_phase_de_aliased = np.zeros(180)
+        self.differential_reflectivity = np.zeros(72)
+        self.differential_phase = np.zeros(72)
+        self.differential_phase_de_aliased = np.zeros(72)
 
 
-        for phi in range(180):
-            self.differential_reflectivity[phi] = 10 * np.log10(self.horizontal_power[phi] / self.vertical_power[phi])
-            self.differential_phase[phi] = np.rad2deg(np.angle(self.resultant_voltage_phi[phi]) - np.angle(self.resultant_voltage_theta[phi]))
-                
+        # for phi in range(72):
+        #     self.differential_reflectivity[phi] = 10 * np.log10(self.horizontal_power[phi] / self.vertical_power[phi])
+        #     self.differential_phase[phi] = -1*np.rad2deg(np.angle(self.resultant_voltage_phi[phi]) - np.angle(self.resultant_voltage_theta[phi]))
+
+
+        self.differential_reflectivity = 10 * np.log10(self.horizontal_power/ self.vertical_power)
+        self.differential_phase = (-1*np.rad2deg(np.angle(self.resultant_voltage_phi) - np.angle(self.resultant_voltage_theta))) - 2*self.phiT
+
         self.differential_phase_de_aliased = self._de_alias(self.differential_phase)
+
+        self.rho_hv = (np.conj(self.resultant_voltage_phi) * self.resultant_voltage_theta)/ (np.sqrt(self.horizontal_power * self.vertical_power))
 
     def generate_df(self):
         """

@@ -56,7 +56,12 @@ def discrete_truncated_normal_pmf(mean, spread, lower=0, upper=25):
 
     return df
 
-def generate_distribution_df(radar_params, biological_params, run_id, save=True):
+def generate_distribution_df(radar_params, biological_params, run_id, save=True, seed=False):
+
+    if seed:
+        np.random.seed(seed)
+    else:
+        np.random.seed(42)
 
     range_gate_separation = radar_params['range_gate_separation']
     radar_beam_width = radar_params['radar_beam_width']
@@ -145,16 +150,29 @@ def generate_distribution_df(radar_params, biological_params, run_id, save=True)
     # name = 'Xxanth' # for Xestia xanthographa
     # name_list = [name] * len(df)
 
+    # if not species_params['mean_heading']:
+    #     print('Generating random headings')
+
+
+    random_headings = np.random.randint(0, 360, size=len(df))
+    
     for _ in range(len(df)):
         species_name = np.random.choice(species_list, p=species_prob_list)
         species_params = species_params_dicts[species_name]
         size = np.random.choice(species_params['sizes'], p=species_params['size_distribution'])
         
-        heading = int(np.random.normal(species_params['mean_heading'], species_params['heading_spread']))
+       # heading = int(np.random.normal(species_params['mean_heading'], species_params['heading_spread']))
+
+
+        if isinstance(species_params['mean_heading'], int):
+            heading = int(np.random.normal(species_params['mean_heading'], species_params['heading_spread']))
+        else:
+            heading = random_headings[_]
+
 
         #heading = heading_sample if heading_sample>0 else 360 + heading_sample  # Ensure heading is positive
         pitch = int(np.random.choice(species_params['pitches'], p=species_params['pitch_probs']))
-        string_list.append(f"{species_name}_{size}_{heading}_{pitch}")
+        string_list.append(f"{species_name}~{size}~{heading}~{pitch}")
         size_list.append(size)
         heading_list.append(heading)
         pitch_list.append(pitch)
